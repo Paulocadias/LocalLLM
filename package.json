@@ -1,0 +1,15 @@
+{
+  "name": "localllm",
+  "version": "1.0.0",
+  "description": "This project sets up an intelligent local LLM system with advanced features like LangChain agents, auto-updates, reflection capabilities, and monitoring. Designed to compete with modern AI assistants like Claude Sonnet 4.5.",
+  "main": "playwright-browser-tests.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "playwright": "^1.56.1"
+  }
+}

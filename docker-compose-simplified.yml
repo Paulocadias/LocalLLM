@@ -1,0 +1,255 @@
+services:
+  redis:
+    image: redis:latest
+    container_name: localllm-redis
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  localllm:
+    build:
+      context: .
+      dockerfile: Dockerfile.simplified
+    container_name: localllm-enhanced
+    ports:
+      - "8080:8080"  # Main API
+      - "8081:8081"  # Monitoring
+    volumes:
+      - ./models:/app/models
+      - ./data:/app/data
+      - ./logs:/app/logs
+    environment:
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - REDIS_URL=redis://redis:6379
+      - MONITORING_PORT=8081
+      - VECTOR_DB_URL=http://vector-db:8007
+    depends_on:
+      - redis
+      - vector-db
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  ui:
+    build:
+      context: ./ui
+      dockerfile: Dockerfile
+    container_name: localllm-ui
+    ports:
+      - "3001:3000"
+    depends_on:
+      - localllm
+      - orchestration
+    environment:
+      - VITE_API_URL=http://localhost:8080
+      - VITE_ORCHESTRATION_URL=http://localhost:8003
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  orchestration:
+    build:
+      context: ./orchestration-service
+      dockerfile: Dockerfile
+    container_name: localllm-orchestration
+    ports:
+      - "8003:8003"
+    depends_on:
+      - localllm
+      - redis
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - MULTIMODAL_SERVICE_URL=http://multimodal-agent:8002
+      - LANGCHAIN_SERVICE_URL=http://langchain-agent:8000
+      - LOCALLLM_SERVICE_URL=http://localllm:8080
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  multimodal-agent:
+    build:
+      context: ./multimodal-agent
+      dockerfile: Dockerfile
+    container_name: localllm-multimodal
+    ports:
+      - "8002:8002"
+    depends_on:
+      - redis
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - MULTIMODAL_MODEL=qwen3:latest
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  langchain-agent:
+    build:
+      context: ./langchain-agent
+      dockerfile: Dockerfile
+    container_name: localllm-langchain
+    ports:
+      - "8000:8000"
+    depends_on:
+      - redis
+      - model-manager
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - MODEL_NAME=qwen3-coder:latest
+      - LATEST_CODER_MODEL=qwen3-coder:latest
+      - MODEL_MANAGER_URL=http://model-manager:8005
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  model-manager:
+    build:
+      context: ./model-manager
+      dockerfile: Dockerfile
+    container_name: localllm-model-manager
+    ports:
+      - "8005:8005"
+    depends_on:
+      - redis
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8005/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  meta-orchestrator:
+    build:
+      context: ./meta-orchestrator
+      dockerfile: Dockerfile
+    container_name: localllm-meta-orchestrator
+    ports:
+      - "8004:8004"
+    depends_on:
+      - orchestration
+      - multimodal-agent
+      - langchain-agent
+      - localllm
+      - redis
+      - model-manager
+      - web-search
+      - model-improvement
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - ORCHESTRATION_URL=http://orchestration:8003
+      - MULTIMODAL_URL=http://multimodal-agent:8002
+      - LANGCHAIN_URL=http://langchain-agent:8000
+      - LOCALLLM_URL=http://localllm:8080
+      - MODEL_MANAGER_URL=http://model-manager:8005
+      - WEB_SEARCH_URL=http://web-search:8006
+      - MODEL_IMPROVEMENT_URL=http://model-improvement:8008
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  web-search:
+    build:
+      context: ./web-search-service
+      dockerfile: Dockerfile
+    container_name: localllm-web-search
+    ports:
+      - "8006:8006"
+    depends_on:
+      - redis
+    environment:
+      - REDIS_URL=redis://redis:6379
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8006/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  vector-db:
+    build:
+      context: ./vector-db-service
+      dockerfile: Dockerfile
+    container_name: localllm-vector-db
+    ports:
+      - "8007:8007"
+    depends_on:
+      - redis
+    environment:
+      - CHROMA_DB_PATH=/app/data/chromadb
+      - EMBEDDING_MODEL=all-MiniLM-L6-v2
+    volumes:
+      - vector_db_data:/app/data/chromadb
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8007/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  model-improvement:
+    build:
+      context: ./model-improvement-service
+      dockerfile: Dockerfile
+    container_name: localllm-model-improvement
+    ports:
+      - "8008:8008"
+    depends_on:
+      - redis
+      - model-manager
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - OLLAMA_URL=http://host.docker.internal:11434
+      - META_ORCHESTRATOR_URL=http://meta-orchestrator:8004
+      - MODEL_MANAGER_URL=http://model-manager:8005
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}  # Set in .env file
+    volumes:
+      - ./comparison_results:/app/comparison_results
+      - ./datasets/lora_profiles:/app/datasets/lora_profiles
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8008/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  redis_data:
+  vector_db_data:

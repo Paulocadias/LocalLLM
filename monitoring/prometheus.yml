@@ -1,0 +1,19 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: 'ollama'
+    static_configs:
+      - targets: ['ollama:11434']
+    
+  - job_name: 'langchain-agent'
+    static_configs:
+      - targets: ['langchain-agent:8000']
+    
+  - job_name: 'model-manager'
+    static_configs:
+      - targets: ['model-manager:8001']
+    
+  - job_name: 'reflection-agent'
+    static_configs:
+      - targets: ['reflection-agent:8002']

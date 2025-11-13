@@ -1,0 +1,31 @@
+# LoRA Fine-Tuning Requirements
+# Install: pip install -r lora_requirements.txt
+
+# Core ML Libraries
+transformers>=4.38.0
+peft>=0.8.2
+datasets>=2.16.0
+trl>=0.7.10
+accelerate>=0.26.0
+
+# Quantization (optional, for GPU memory optimization)
+bitsandbytes>=0.42.0
+
+# Model Training
+torch>=2.1.0
+tensorboard>=2.15.0
+
+# Data Processing
+numpy>=1.24.0
+pandas>=2.0.0
+jsonlines>=4.0.0
+
+# Web Scraping (for dataset collection)
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+PyGithub>=2.1.0
+stackapi>=0.3.0
+
+# Utilities
+tqdm>=4.66.0
+rich>=13.7.0
